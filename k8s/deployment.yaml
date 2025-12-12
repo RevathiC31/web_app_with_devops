@@ -1,0 +1,44 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-file-manager
+  labels:
+    app: flask-file-manager
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flask-file-manager
+  template:
+    metadata:
+      labels:
+        app: flask-file-manager
+    spec:
+      containers:
+        - name: web
+          image: your-dockerhub-username/flask-file-manager:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secrets
+                  key: secret_key
+            - name: SQLALCHEMY_DATABASE_URI
+              value: "sqlite:////data/site.db"
+            - name: UPLOAD_FOLDER
+              value: "/data/uploads"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+          # For persistence in production, replace with a PVC:
+          # persistentVolumeClaim:
+          #   claimName: flask-data-pvc
