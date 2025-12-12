@@ -1,0 +1,9 @@
+
+Flask==2.3.2
+Flask-SQLAlchemy==3.0.5
+Werkzeug==2.3.7
+
+# Dev / Test
+pytest==7.4.0
+pytest-cov==4.1.0
+flake8==6.1.0
