@@ -1,0 +1,58 @@
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Dashboard - Flask File Manager</title>
+    <style>
+      body{font-family: Arial; margin: 2rem;}
+      table{border-collapse: collapse; width: 100%;}
+      th, td{border: 1px solid #ddd; padding: 8px;}
+      th{background: #f7f7f7;}
+      .flash{color:#0a0; margin-bottom: 1rem;}
+      .danger{color:#b00;}
+    </style>
+  </head>
+  <body>
+    <h1>Welcome, {{ username }}</h1>
+    <p>{{ url_for(Logout</a></p>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash">
+          {% for msg in messages %}<div>{{ msg }}</div>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <h2>Upload a File</h2>
+    {{ url_for(
+      <input type="file" name="file" required>
+      <button type="submit">Upload</button>
+    </form>
+
+    <h2>Your Files</h2>
+    {% if files %}
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Filename</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          {% for f in files %}
+            <tr>
+              <td>{{ f.id }}</td>
+              <td>{{ f.filename }}</td>
+              <td>
+                {{ url_for(View</a> |
+                {{ url_for(Download</a> |
+                {{ url_for(Delete</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No files yet.</p>
+    {% endif %}
+  </body>
+</html>
