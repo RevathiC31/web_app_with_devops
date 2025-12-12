@@ -1,25 +1,11 @@
+
 """
-app.py
+Flask File Manager
 
-A Flask-based web application for user registration, authentication, and secure file management.
-
-Features:
-- User registration and login with hashed passwords
-- File upload, download, view, and delete functionality
-- User-specific file access control
-- SQLite database integration using SQLAlchemy
-- Flash messaging for user feedback
-- MIME type detection for file viewing
-
-Modules used:
-- Flask: Web framework
-- SQLAlchemy: ORM for database interaction
-- Werkzeug: Utilities for password hashing and secure file handling
-- OS and mimetypes: File system and MIME type support
-
-Author: Revathi C
-Date: 23-06-2025
+A Flask-based web application for user registration, authentication,
+and secure file management (upload, view, download, delete).
 """
+
 import os
 import mimetypes
 from flask import Flask, render_template, request, redirect, url_for, session, \
@@ -28,48 +14,55 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 
-
-
+# -----------------------------------------------------------------------------
 # Configuration
+# -----------------------------------------------------------------------------
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 * 1024 # 16GB
+
+# Prefer environment variables for secrets/configs
+app.secret_key = os.getenv('SECRET_KEY', 'dev_secret_key')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI', 'sqlite:///site.db')
+app.config['UPLOAD_FOLDER'] = os.getenv('UPLOAD_FOLDER', 'uploads')
+# Default 16GB
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024 * 1024)))
 
 db = SQLAlchemy(app)
 
+# -----------------------------------------------------------------------------
 # Models
-class User(db.Model): # pylint: disable=too-few-public-methods
+# -----------------------------------------------------------------------------
+class User(db.Model):  # pylint: disable=too-few-public-methods
     """Database model for users."""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     files = db.relationship('File', backref='owner', lazy=True)
 
-class File(db.Model): # pylint: disable=too-few-public-methods
+
+class File(db.Model):  # pylint: disable=too-few-public-methods
     """Database model for uploaded files."""
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(300), nullable=False)
     path = db.Column(db.String(500), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-def get_file_by_id(file_id):
-    """
-    Retrieve a file record by its ID.
 
-    Args:
-        file_id (int): The ID of the file.
-
-    Returns:
-        File: The file object if found, else None.
-    """
+def get_file_by_id(file_id: int):
+    """Retrieve a file record by its ID."""
     return File.query.get(file_id)
 
+# -----------------------------------------------------------------------------
 # Routes
+# -----------------------------------------------------------------------------
+@app.route('/health')
+def health():
+    """Health check endpoint for monitoring and readiness probes."""
+    return {"status": "ok"}, 200
+
+
 @app.route('/')
 def home():
-    """Render the home page or redirect to dashboard if logged in."""
+    """Render login or redirect to dashboard if logged in."""
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
     return render_template('login.html')
@@ -79,25 +72,31 @@ def home():
 def register():
     """Handle user registration."""
     if request.method == 'POST':
-        username = request.form['username']
-        password = generate_password_hash(request.form['password'])
+        username = request.form['username'].strip()
+        password_raw = request.form['password']
+        if not username or not password_raw:
+            flash("Username and password are required.")
+            return redirect(url_for('register'))
+
         if User.query.filter_by(username=username).first():
             flash("Username already taken.")
             return redirect(url_for('register'))
+
+        password = generate_password_hash(password_raw)
         user = User(username=username, password=password)
         db.session.add(user)
         db.session.commit()
         flash("Registration successful. Please log in.")
         return redirect(url_for('login'))
 
-    # Explicit return for GET request
     return render_template('register.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Handle user login."""
     if request.method == 'POST':
-        username = request.form['username']
+        username = request.form['username'].strip()
         password_input = request.form['password']
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password_input):
@@ -106,11 +105,13 @@ def login():
         flash("Invalid username or password.")
     return render_template('login.html')
 
+
 @app.route('/logout')
 def logout():
     """Log the user out and clear the session."""
     session.clear()
     return redirect(url_for('login'))
+
 
 @app.route('/dashboard')
 def dashboard():
@@ -120,6 +121,7 @@ def dashboard():
     user = User.query.get(session['user_id'])
     user_files = File.query.filter_by(user_id=user.id).all()
     return render_template('dashboard.html', files=user_files, username=user.username)
+
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -150,14 +152,13 @@ def upload_file():
         flash('File uploaded successfully')
         return redirect(url_for('dashboard'))
 
+    flash('No file provided')
+    return redirect(url_for('dashboard'))
+
+
 @app.route('/download/<int:file_id>')
 def download_file(file_id):
-    """
-    Allow the user to download a file by ID.
-
-    Args:
-        file_id (int): The ID of the file to download.
-    """
+    """Allow the user to download a file by ID."""
     file = File.query.get_or_404(file_id)
     if file.user_id != session.get('user_id'):
         flash("Unauthorized access.")
@@ -167,12 +168,7 @@ def download_file(file_id):
 
 @app.route('/view/<int:file_id>')
 def view_file(file_id):
-    """
-    Allow the user to view a file in the browser.
-
-    Args:
-        file_id (int): The ID of the file to view.
-    """
+    """Allow the user to view a file in the browser."""
     file = get_file_by_id(file_id)
     if not file:
         abort(404, description="File not found")
@@ -186,14 +182,10 @@ def view_file(file_id):
         mime_type = 'application/octet-stream'
     return send_file(file.path, mimetype=mime_type)
 
+
 @app.route('/delete/<int:file_id>')
 def delete_file(file_id):
-    """
-    Delete a file uploaded by the user.
-
-    Args:
-        file_id (int): The ID of the file to delete.
-    """
+    """Delete a file uploaded by the user."""
     file = File.query.get_or_404(file_id)
     if file.user_id != session.get('user_id'):
         flash("Unauthorized action.")
@@ -207,9 +199,12 @@ def delete_file(file_id):
     flash("File deleted.")
     return redirect(url_for('dashboard'))
 
+
+# -----------------------------------------------------------------------------
+# Entrypoint
+# -----------------------------------------------------------------------------
 if __name__ == '__main__':
-    # Initialize the database and start the Flask development server.
     with app.app_context():
         db.create_all()
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')), debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true')
